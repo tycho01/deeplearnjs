@@ -41,6 +41,24 @@ export interface SumTypes {
   bool: 'int32';
 }
 
+export interface Float32And {
+  float32: 'float32';
+  int32: 'float32';
+  bool: 'float32';
+}
+
+export interface UpType {
+  float32: {float32: 'float32'; int32: 'float32'; bool: 'float32';};
+  int32: {float32: 'float32'; int32: 'int32'; bool: 'int32';};
+  bool: {float32: 'float32'; int32: 'int32'; bool: 'bool';};
+}
+
+export const UP_TYPE_MAP: {[key: string]: {[key: string]: keyof DataTypes}} = {
+  float32: {float32: 'float32', int32: 'float32', bool: 'float32'},
+  int32: {float32: 'float32', int32: 'int32', bool: 'int32'},
+  bool: {float32: 'float32', int32: 'int32', bool: 'bool'}
+};
+
 export enum SumTypesMap {
   float32 = 'float32',
   int32 = 'int32',
@@ -1936,15 +1954,24 @@ export abstract class NDArrayMath {
   moments(x: NDArray, axis: number|number[] = null, keepDims = false):
       {mean: NDArray<'float32'>, variance: NDArray<'float32'>} {
     const axes = axis_util.parseAxisParam(axis, x.shape);
+    const shapes = axis_util.computeOutAndReduceShapes(x.shape, axes);
+    const reduceShape = shapes[1];
+    const reduceSize = util.sizeFromShape(reduceShape);
+
     const result = this.scope(() => {
-      const mean = this.mean(x, axes, keepDims);
+      const xOverN = this.multiply(x, Scalar.new(1.0 / reduceSize));
+      const mean = this.sum(xOverN, axes, keepDims) as NDArray<'float32'>;
+      const meanOverN = this.multiply(mean, Scalar.new(1.0 / reduceSize));
       let keepDimsShape = mean.shape;
       if (!keepDims) {
         keepDimsShape = axis_util.expandShapeToKeepDim(mean.shape, axes);
       }
       const devSquared =
-          this.square(this.subtract(x, mean.reshape(keepDimsShape)));
-      const variance = this.mean(devSquared, axes, keepDims);
+          this.square(this.subtract(
+              xOverN, meanOverN.reshape(keepDimsShape))) as NDArray<'float32'>;
+      const variance = this.multiply(
+                           this.sum(devSquared, axes, keepDims),
+                           Scalar.new(reduceSize)) as NDArray<'float32'>;
       return {mean, variance};
     });
     return result;

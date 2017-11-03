@@ -16,7 +16,8 @@
  */
 
 import {ConvInfo} from './conv_util';
-import {MatrixOrientation, NDArrayMath, SumTypes, SumTypesMap} from './math';
+// tslint:disable-next-line:max-line-length
+import {MatrixOrientation, NDArrayMath, SumTypes, SumTypesMap, UP_TYPE_MAP} from './math';
 import * as ndarray from './ndarray';
 // tslint:disable-next-line:max-line-length
 import {Array1D, Array2D, Array3D, Array4D, DataTypes, NDArray, Scalar} from './ndarray';
@@ -195,7 +196,9 @@ export class NDArrayMathGPU extends NDArrayMath {
 
   protected multiplyInternal<T extends NDArray>(a: T, b: T): T {
     const program = new BinaryOpProgram(binaryop_gpu.MUL, a.shape, b.shape);
-    return this.compileAndRun(program, [a, b]) as T;
+    const output = this.makeOutputArray(
+        program.outputShape, UP_TYPE_MAP[a.dtype][b.dtype]);
+    return this.compileAndRun(program, [a, b], output) as T;
   }
 
   protected batchNormalization3DInternal(
